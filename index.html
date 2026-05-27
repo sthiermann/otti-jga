@@ -157,6 +157,9 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
 .btn-ok{background:linear-gradient(135deg,var(--ok),#1bbf7a);color:#03281b}
 .btn-no{background:linear-gradient(135deg,var(--bad),#d83a4f);color:#fff}
 .mark-hint{text-align:center;font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-top:14px}
+.drinkbanner{margin-top:16px;border-radius:14px;padding:14px 16px;text-align:center;font-family:var(--font-display);font-weight:800;text-transform:uppercase;letter-spacing:.03em;font-size:clamp(18px,5vw,24px);animation:pop .4s both}
+.drinkbanner.give{background:linear-gradient(135deg,var(--cyan),var(--ok));color:#04231f}
+.drinkbanner.drink{background:linear-gradient(135deg,var(--neon),var(--red));color:#fff}
 .result{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:18px}
 .result .big{font-family:var(--font-display);font-weight:800;font-size:clamp(40px,13vw,72px);text-transform:uppercase;line-height:.9}
 .result .score{font-family:var(--font-mono);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);font-size:13px}
@@ -226,14 +229,14 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
    CONFIG (nicht sensibel) — Quiz-Inhalte sind verschlüsselt in quizdata.js
    ==================================================================== */
 const CONFIG = { REQUIRE_EARNED_LETTERS: true, PASS_THRESHOLD: 3, SOUND_DEFAULT: true };
-const APP_VERSION = "v5"; // bei jedem Deploy zusammen mit CACHE in service-worker.js hochzählen
+const APP_VERSION = "v6"; // bei jedem Deploy zusammen mit CACHE in service-worker.js hochzählen
 const AC = {gold:"var(--gold)",cyan:"var(--cyan)",red:"var(--red)",neon:"var(--neon)",lime:"var(--lime)",rose:"var(--rose)",violet:"var(--violet)"};
 
 /* nach Entschlüsselung gefüllt */
 let SECTIONS = [], SOLUTION = "", SECTION_LETTERS = [], END_MESSAGE = "", N = 0;
 
 const STORE_KEY = "otti-jga-v1", PASS_KEY = "otti-jga-pass";
-let state = null, view = {name:"title"}, qTmp = {revealed:false, tip:null};
+let state = null, view = {name:"title"}, qTmp = {tip:null, peeked:false};
 let unlocked = false, passEntry = "", passError = false, passBusy = false;
 
 /* ====================================================================
@@ -443,8 +446,9 @@ function secCard(s,i){
 
 function screenQuestion(){
   const i=view.s, qi=view.q, s=SECTIONS[i], q=s.questions[qi];
-  const ans=state.sections[i].answers[qi];
-  const revealed = qTmp.revealed || ans!==null;
+  const ans=state.sections[i].answers[qi];           // null | true | false  (= Wertung)
+  const isMC = q.type==="mc" || q.type==="truefalse";
+  const revealed = ans!==null || qTmp.peeked;
   const dots=[0,1,2,3].map(k=>{ const av=state.sections[i].answers[k]; return h("b",{class:(av===true?"ok":av===false?"bad":"")+(k===qi?" cur":"")}); });
   const kids=[
     h("span.badge",null, h("span.dot"), s.sub||s.title),
@@ -454,14 +458,36 @@ function screenQuestion(){
   if(q.prompt){
     kids.push(h("div.prompt-panel",null, h("div.lbl",null,"Zur Auswahl"), h("div.chips",null, q.prompt.map(p=>h("span",null,p)))));
   }
-  if(q.type==="mc"||q.type==="truefalse"){
-    kids.push(h("div.opts",null, q.options.map((o,k)=>optionRow(q,k,revealed))));
+  if(isMC){
+    const keys=["A","B","C","D"];
+    kids.push(h("div.opts",null, q.options.map((o,k)=>{
+      let cls="opt";
+      if(revealed){ if(k===q.correct)cls+=" correct"; else if(qTmp.tip===k)cls+=" wrong"; }
+      return h("div",{class:cls,on:{click:()=>judgeMC(k)}}, h("span.key",null,keys[k]), h("span",null,o));
+    })));
+  } else if(revealed){
+    kids.push(revealPanel(q));
   }
-  if(revealed) kids.push(revealPanel(q));
-  const controls = revealed ? markUI(ans) : [
-    btn("Auflösen",{variant:"btn-primary",onClick:reveal}),
-    h("div.mark-hint",null, (q.type==="mc"||q.type==="truefalse") ? "Tipp: Ottis Antwort optional antippen" : "Otti antwortet — dann auflösen")
-  ];
+  if(ans!==null){
+    kids.push(h("div",{class:"drinkbanner "+(ans?"give":"drink")}, ans?"🥂 Jemand anders trinkt!":"🍻 Otti muss trinken!"));
+  }
+  let controls;
+  if(ans===null){
+    controls = isMC
+      ? [ h("div.mark-hint",null,"Tippe die Antwort, die Otti gesagt hat"),
+          btn("Otti wusste es nicht → trinken",{variant:"btn-ghost",sm:true,style:"width:100%;margin-top:8px",onClick:()=>judge(false)}) ]
+      : [ h("div.markrow",null,
+            btn("✅ Richtig",{variant:"btn-ok",onClick:()=>judge(true)}),
+            btn("❌ Falsch",{variant:"btn-no",onClick:()=>judge(false)})),
+          qTmp.peeked ? null : btn("🔍 Antwort zeigen",{variant:"btn-ghost",sm:true,style:"width:100%;margin-top:10px",onClick:peek}) ];
+  } else {
+    controls = [];
+    if(isMC) controls.push(h("div.mark-hint",null,"Daneben getippt? Einfach die richtige Antwort antippen."));
+    else controls.push(h("div.markrow",{style:"margin-bottom:12px"},
+      btn("✅ Richtig",{variant:"btn-ok",style:ans===true?"":"opacity:.55",onClick:()=>judge(true)}),
+      btn("❌ Falsch",{variant:"btn-no",style:ans===false?"":"opacity:.55",onClick:()=>judge(false)})));
+    controls.push(btn(view.q<3?"Weiter →":"Abschnitt abschließen →",{variant:"btn-primary",onClick:nextQ}));
+  }
   return h("div.screen",{style:"--ac:"+AC[s.ac]},
     h("div.qhead",null,
       h("div.left",null, iconBtn("‹",()=>go("hub")), h("div.st",null, s.code+" · "+s.title)),
@@ -471,17 +497,7 @@ function screenQuestion(){
     controls
   );
 }
-function optionRow(q,k,revealed){
-  const keys=["A","B","C","D"];
-  let cls="opt";
-  if(revealed){ if(k===q.correct)cls+=" correct"; else if(qTmp.tip===k)cls+=" wrong"; }
-  else if(qTmp.tip===k)cls+=" tip";
-  return h("div",{class:cls,on: revealed?null:{click:()=>pickTip(k)}}, h("span.key",null,keys[k]), h("span",null,q.options[k]));
-}
 function revealPanel(q){
-  if(q.type==="mc"||q.type==="truefalse"){
-    return h("div.reveal",null, h("div.lbl",null,"✓ Richtige Antwort"), h("div.ans",null,q.options[q.correct]));
-  }
   const inner=[h("div.lbl",null,"✓ Richtige Antwort")];
   if(q.type==="sort"||q.type==="rank"){ inner.push(h("ol",null, q.answerList.map(x=>h("li",null,x)))); }
   else if(q.type==="list"){ inner.push(h("div.chips",null, q.answerList.map(x=>h("span",null,x)))); }
@@ -490,15 +506,13 @@ function revealPanel(q){
   if(q.note) inner.push(h("div.note",null,q.note));
   return h("div.reveal",null, inner);
 }
-function markUI(ans){
-  const out=[ h("div.markrow",null,
-      btn("✓ Richtig",{variant:"btn-ok",style:ans===true?"":"opacity:.85",onClick:()=>mark(true)}),
-      btn("✗ Falsch",{variant:"btn-no",style:ans===false?"":"opacity:.85",onClick:()=>mark(false)})
-  )];
-  if(ans!==null) out.push(btn(view.q<3?"Weiter →":"Abschnitt abschließen →",{variant:"btn-ghost",style:"margin-top:12px",onClick:nextQ}));
-  else out.push(h("div.mark-hint",null,"Otti richtig geantwortet?"));
-  return out;
+function judge(ok, tipIdx){
+  state.sections[view.s].answers[view.q]=ok;
+  qTmp.tip = (tipIdx==null ? null : tipIdx);
+  save(); sfx(ok?"correct":"wrong"); render();
 }
+function judgeMC(k){ const q=SECTIONS[view.s].questions[view.q]; judge(k===q.correct, k); }
+function peek(){ qTmp.peeked=true; render(); }
 
 function screenResult(){
   const i=view.s, s=SECTIONS[i], c=corrects(i), pass=isPass(i), letter=SECTION_LETTERS[i], next=nextUnfinishedSection();
@@ -575,17 +589,10 @@ function screenEnd(){
 /* ====================================================================
    NAVIGATION / ACTIONS
    ==================================================================== */
-function go(name){ view={name}; qTmp={revealed:false,tip:null}; render(); }
-function goSection(i){ view={name:"question",s:i,q:firstUnanswered(i)}; qTmp={revealed:false,tip:null}; render(); }
+function go(name){ view={name}; qTmp={tip:null,peeked:false}; render(); }
+function goSection(i){ view={name:"question",s:i,q:firstUnanswered(i)}; qTmp={tip:null,peeked:false}; render(); }
 function resume(){ const i=nextUnfinishedSection(); if(i<0)openFinale(); else goSection(i); }
-function reveal(){ qTmp.revealed=true; render(); }
-function pickTip(k){ qTmp.tip=k; render(); }
-function mark(ok){
-  state.sections[view.s].answers[view.q]=ok; save();
-  toast(ok?"Otti darf verteilen!":"Otti muss trinken!", ok?"give":"drink", ok?"🥂":"🍻");
-  sfx(ok?"correct":"wrong"); render();
-}
-function nextQ(){ if(view.q<3){ view.q++; qTmp={revealed:false,tip:null}; render(); } else { view={name:"result",s:view.s}; render(); } }
+function nextQ(){ if(view.q<3){ view.q++; qTmp={tip:null,peeked:false}; render(); } else { view={name:"result",s:view.s}; render(); } }
 function openFinale(){ view={name:"finale"}; render(); }
 function toggleSound(){ state.soundOn=!state.soundOn; save(); render(); if(state.soundOn)sfx("correct"); }
 function confirmReset(){ toastConfirm("Wirklich alles zurücksetzen?", resetAll); }
