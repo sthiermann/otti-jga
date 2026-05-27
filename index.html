@@ -203,6 +203,12 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
   border:1.5px solid var(--line);border-radius:14px;padding:16px 18px;width:min(320px,82vw);outline:none}
 .passinput:focus{border-color:var(--neon);box-shadow:0 0 0 3px color-mix(in srgb,var(--neon) 22%,transparent)}
 #confetti{position:fixed;inset:0;z-index:60;pointer-events:none}
+#update{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 10px);z-index:70;display:flex;justify-content:center;pointer-events:none;padding:0 12px}
+.updatebar{pointer-events:auto;display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--cyan),var(--ok));color:#04231f;
+  font-family:var(--font-display);font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.04em;padding:9px 9px 9px 18px;border-radius:999px;box-shadow:var(--shadow);animation:toastIn .35s both}
+.upd-btn{appearance:none;border:0;cursor:pointer;background:#06231f;color:#fff;font-family:var(--font-display);font-weight:800;text-transform:uppercase;letter-spacing:.06em;font-size:13px;padding:9px 16px;border-radius:999px}
+.upd-btn:active{transform:scale(.96)}
+.upd-btn[disabled]{opacity:.6}
 .spacer{flex:1}
 </style>
 </head>
@@ -211,6 +217,7 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
 <div id="grain"></div>
 <canvas id="confetti"></canvas>
 <div id="toast"></div>
+<div id="update"></div>
 <div id="app"></div>
 <script src="quizdata.js"></script>
 <script>
@@ -722,7 +729,33 @@ function sfx(kind){
 
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=a[i];a[i]=a[j];a[j]=t; } return a; }
 
-if("serviceWorker" in navigator){ addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{})); }
+/* ---- PWA-Update: Banner „Neue Version verfügbar“ + Aktualisieren ---- */
+let swApplying = false;
+function showUpdate(reg){
+  const box = document.getElementById("update");
+  if(!box || box.firstChild) return;
+  const button = h("button.upd-btn", null, "Aktualisieren");
+  button.addEventListener("click", () => {
+    if(swApplying) return;
+    swApplying = true; button.textContent = "Aktualisiere…"; button.disabled = true;
+    const w = reg.waiting || reg.installing;
+    if(w) w.postMessage("SKIP_WAITING"); else { swApplying = false; location.reload(); }
+  });
+  box.appendChild(h("div.updatebar", null, h("span", null, "🔄 Neue Version verfügbar"), button));
+}
+function setupSW(){
+  if(!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if(swApplying){ swApplying = false; location.reload(); } });
+  navigator.serviceWorker.register("service-worker.js").then(reg => {
+    if(reg.waiting && navigator.serviceWorker.controller) showUpdate(reg);
+    reg.addEventListener("updatefound", () => {
+      const nw = reg.installing; if(!nw) return;
+      nw.addEventListener("statechange", () => { if(nw.state === "installed" && navigator.serviceWorker.controller) showUpdate(reg); });
+    });
+    document.addEventListener("visibilitychange", () => { if(!document.hidden) reg.update().catch(()=>{}); });
+  }).catch(()=>{});
+}
+if(document.readyState === "complete") setupSW(); else addEventListener("load", setupSW);
 addEventListener("pointerdown",()=>{const a=ac();if(a&&a.state==="suspended")a.resume();},{once:true});
 
 boot();

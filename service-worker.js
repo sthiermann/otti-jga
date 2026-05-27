@@ -1,6 +1,8 @@
 /* Otti JGA Quiz — Service Worker
-   Cached die App beim ersten Laden -> danach komplett offline nutzbar. */
-const CACHE = "otti-jga-v2";
+   Cached die App beim ersten Laden -> danach komplett offline nutzbar.
+   Updates: neue Version WARTET, bis die App per "SKIP_WAITING" das OK gibt
+   (der "Aktualisieren"-Button in der App). So gibt es keinen unerwarteten Wechsel. */
+const CACHE = "otti-jga-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -14,11 +16,13 @@ const ASSETS = [
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    // einzeln cachen, damit ein evtl. fehlendes Asset die Installation nicht kippt
     await Promise.allSettled(ASSETS.map((a) => c.add(a)));
-    self.skipWaiting();
+    // bewusst KEIN self.skipWaiting() -> neue Version wartet auf Nutzer-Bestätigung
   })());
 });
+
+// Die App schickt "SKIP_WAITING", wenn der Nutzer auf "Aktualisieren" tippt.
+self.addEventListener("message", (e) => { if (e.data === "SKIP_WAITING") self.skipWaiting(); });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
@@ -40,7 +44,6 @@ self.addEventListener("fetch", (e) => {
       c.put(e.request, copy).catch(() => {});
       return res;
     } catch (err) {
-      // offline + nicht im Cache: bei Navigationen die App-Shell liefern
       if (e.request.mode === "navigate") return caches.match("./index.html");
       throw err;
     }
