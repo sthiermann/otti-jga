@@ -1,0 +1,9 @@
+# NIEMALS committen — enthält die Klartext-Antworten (personenbezogene Daten)!
+quizdata.plain.json
+
+# lokale / Build- / Test-Artefakte
+.test-shots/
+.claude/
+node_modules/
+*.log
+.DS_Store
