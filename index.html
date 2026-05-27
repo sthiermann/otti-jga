@@ -226,6 +226,7 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
    CONFIG (nicht sensibel) — Quiz-Inhalte sind verschlüsselt in quizdata.js
    ==================================================================== */
 const CONFIG = { REQUIRE_EARNED_LETTERS: true, PASS_THRESHOLD: 3, SOUND_DEFAULT: true };
+const APP_VERSION = "v4"; // bei jedem Deploy zusammen mit CACHE in service-worker.js hochzählen
 const AC = {gold:"var(--gold)",cyan:"var(--cyan)",red:"var(--red)",neon:"var(--neon)",lime:"var(--lime)",rose:"var(--rose)",violet:"var(--violet)"};
 
 /* nach Entschlüsselung gefüllt */
@@ -356,7 +357,8 @@ function renderPass(){
     h("p.tag",{style:"max-width:30ch;margin:0 auto"},"Gib das Passwort ein, das Max & Fries kennen."),
     input,
     passError ? h("div",{style:"color:var(--bad);font-family:var(--font-mono);font-size:13px;letter-spacing:.05em"},"Falsches Passwort — nochmal versuchen.") : null,
-    btn(passBusy?"…":"Entsperren",{variant:"btn-primary",style:"max-width:320px",disabled:passBusy,onClick:submitPass})
+    btn(passBusy?"…":"Entsperren",{variant:"btn-primary",style:"max-width:320px",disabled:passBusy,onClick:submitPass}),
+    h("div",{style:"font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--ink-faint);margin-top:8px"},"Otti JGA · "+APP_VERSION)
   ));
   setTimeout(()=>{ if(!passBusy) input.focus(); }, 60);
 }
@@ -384,7 +386,7 @@ function screenTitle(){
         btn("Spielregeln",{variant:"btn-ghost",onClick:()=>go("rules")})
       )
     ),
-    h("div.footer",null,"Für Otti — von Max & Fries 🍻")
+    h("div.footer",null,"Für Otti — von Max & Fries 🍻 · "+APP_VERSION)
   );
 }
 

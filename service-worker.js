@@ -2,7 +2,7 @@
    Cached die App beim ersten Laden -> danach komplett offline nutzbar.
    Updates: neue Version WARTET, bis die App per "SKIP_WAITING" das OK gibt
    (der "Aktualisieren"-Button in der App). So gibt es keinen unerwarteten Wechsel. */
-const CACHE = "otti-jga-v3";
+const CACHE = "otti-jga-v4";
 const ASSETS = [
   "./",
   "./index.html",
