@@ -175,7 +175,8 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
 .pool{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:18px 0;min-height:64px;padding:14px;border-radius:18px;
   border:1px dashed var(--line);background:rgba(255,255,255,.015)}
-.pool:empty::after{content:"alle Buchstaben gesetzt";color:var(--ink-faint);font-family:var(--font-mono);font-size:12px;letter-spacing:.1em}
+.pool:empty::after{content:""}
+.pool.ready:empty::after{content:"alle Buchstaben gesetzt";color:var(--ink-faint);font-family:var(--font-mono);font-size:12px;letter-spacing:.1em}
 .tile{width:clamp(44px,11vw,58px);height:64px;border-radius:13px;display:grid;place-items:center;cursor:grab;font-family:var(--font-display);
   font-weight:800;font-size:clamp(24px,6.5vw,32px);color:#101019;touch-action:none;background:linear-gradient(155deg,#fff,#ffe2cf);
   box-shadow:0 12px 26px -12px rgba(0,0,0,.65),inset 0 -3px 0 rgba(0,0,0,.12);position:relative;transition:transform .12s}
@@ -217,7 +218,7 @@ h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:.01em;li
 /* ====================================================================
    CONFIG (nicht sensibel) — Quiz-Inhalte sind verschlüsselt in quizdata.js
    ==================================================================== */
-const CONFIG = { REQUIRE_EARNED_LETTERS: false, PASS_THRESHOLD: 3, SOUND_DEFAULT: true };
+const CONFIG = { REQUIRE_EARNED_LETTERS: true, PASS_THRESHOLD: 3, SOUND_DEFAULT: true };
 const AC = {gold:"var(--gold)",cyan:"var(--cyan)",red:"var(--red)",neon:"var(--neon)",lime:"var(--lime)",rose:"var(--rose)",violet:"var(--violet)"};
 
 /* nach Entschlüsselung gefüllt */
@@ -514,19 +515,25 @@ function screenResult(){
 
 function screenFinale(){
   const tiles=finaleTiles();
+  const total=SOLUTION.length, earned=tiles.length, complete=earned>=total;
+  const validIds=new Set(tiles.map(t=>t.id));
+  let cleaned=false;
+  state.finaleSlots=state.finaleSlots.map(id=>{ if(id!==null && !validIds.has(id)){cleaned=true;return null;} return id; });
+  if(cleaned) save();
   const placed=new Set(state.finaleSlots.filter(x=>x!==null));
   if(poolOrder.length!==tiles.length || !tiles.every(t=>poolOrder.includes(t.id))) poolOrder=shuffle(tiles.map(t=>t.id));
   const poolIds=poolOrder.filter(id=>!placed.has(id));
-  const allFilled=state.finaleSlots.every(x=>x!==null);
+  const allFilled=complete && state.finaleSlots.every(x=>x!==null);
   const slotNodes=state.finaleSlots.map((tid,si)=>h("div.slot",{data:{index:String(si)}}, tid!==null?tileNode(tid,findLetter(tiles,tid),true):null));
-  const poolNode=h("div.pool#pool",null, poolIds.map(id=>tileNode(id,findLetter(tiles,id),false)));
+  const poolNode=h("div",{class:"pool"+(complete?" ready":""),id:"pool"}, poolIds.map(id=>tileNode(id,findLetter(tiles,id),false)));
+  const head = complete
+    ? [ h("div.kicker",null,"10 Buchstaben · 1 Wort"), h("h2",null,"Setz es zusammen, Otti!"),
+        h("p",null,"Zieh die Schnipsel in die Felder — oder tippe sie an. Wenn die Reihenfolge stimmt, knallt’s. 🎆") ]
+    : [ h("div.kicker",null,"Noch nicht komplett"), h("h2",null,"🔒 "+earned+" / "+total+" Buchstaben"),
+        h("p",null,"Dir fehlen noch ",h("b",null,(total-earned)+(total-earned===1?" Buchstabe":" Buchstaben")),". Verdiene sie in den Abschnitten (3 von 4 richtig), dann kannst du das Lösungswort legen!") ];
   return h("div.screen",null,
     h("div.topbar",null, iconBtn("‹",()=>go("hub")), h("div.brand",null,"Das Finale"), h("div.toolbtns",null,soundBtn())),
-    h("div.fin-head.stagger",null,
-      h("div.kicker",null,"10 Buchstaben · 1 Wort"),
-      h("h2",null,"Setz es zusammen, Otti!"),
-      h("p",null,"Zieh die Schnipsel in die Felder — oder tippe sie an. Wenn die Reihenfolge stimmt, knallt’s. 🎆")
-    ),
+    h("div.fin-head.stagger",null, head),
     h("div.slots#slots",null, slotNodes),
     poolNode,
     h("div.fin-actions",null,

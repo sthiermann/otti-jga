@@ -1,6 +1,6 @@
 /* Otti JGA Quiz — Service Worker
    Cached die App beim ersten Laden -> danach komplett offline nutzbar. */
-const CACHE = "otti-jga-v1";
+const CACHE = "otti-jga-v2";
 const ASSETS = [
   "./",
   "./index.html",
